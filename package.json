@@ -1,0 +1,57 @@
+{
+  "name": "dsh-ai-memory",
+  "version": "0.1.0",
+  "description": "DeepSeek Harness plugin that wires ai-memory natively: full lifecycle capture (session start and end, prompts, tools, turn stops, compaction, subagents), the pending handoff and post-compaction anchor injected into the session, and the ai-memory tools for the model — no shell, on Windows, macOS and Linux.",
+  "type": "module",
+  "main": "./lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/**/*.js",
+    "cordis.patch.yml",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "node scripts/build.mjs",
+    "check:lib": "node scripts/build.mjs --check",
+    "test": "node scripts/test.mjs",
+    "test:e2e": "node scripts/e2e.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "~5.9.3"
+  },
+  "license": "MIT",
+  "author": "frederico-kluser",
+  "homepage": "https://github.com/frederico-kluser/dsh-ai-memory#readme",
+  "bugs": {
+    "url": "https://github.com/frederico-kluser/dsh-ai-memory/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/frederico-kluser/dsh-ai-memory.git"
+  },
+  "keywords": [
+    "dsh-plugin",
+    "dsh",
+    "deepseek-harness",
+    "cordis",
+    "ai-memory",
+    "memory",
+    "handoff",
+    "agent-memory"
+  ]
+}

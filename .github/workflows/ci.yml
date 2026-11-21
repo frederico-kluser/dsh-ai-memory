@@ -1,0 +1,105 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: test (${{ matrix.os }}, node ${{ matrix.node }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        node: [22, 24]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm ci
+      - run: npm run typecheck
+      - name: lib/ matches the sources
+        run: npm run check:lib
+      - run: npm test
+
+  live:
+    name: live ai-memory (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            asset: ai-memory-linux-x86_64.tar.gz
+          - os: macos-latest
+            asset: ai-memory-macos-aarch64.tar.gz
+          - os: windows-latest
+            asset: ai-memory-windows-x86_64.zip
+    env:
+      AI_MEMORY_VERSION: 3.5.1
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+      - name: Install ai-memory ${{ env.AI_MEMORY_VERSION }} (checksum verified)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ASSET: ${{ matrix.asset }}
+        run: |
+          set -euo pipefail
+          dir="$RUNNER_TEMP/ai-memory"
+          mkdir -p "$dir"
+          cd "$dir"
+          gh release download "v$AI_MEMORY_VERSION" -R akitaonrails/ai-memory -p "$ASSET" -p "$ASSET.sha256"
+          expected="$(cut -d' ' -f1 "$ASSET.sha256")"
+          actual="$( (sha256sum "$ASSET" 2>/dev/null || shasum -a 256 "$ASSET") | cut -d' ' -f1)"
+          if [ "$expected" != "$actual" ]; then echo "checksum mismatch for $ASSET"; exit 1; fi
+          case "$ASSET" in
+            *.zip) unzip -q "$ASSET" ;;
+            *) tar -xzf "$ASSET" ;;
+          esac
+          bin="$(find "$dir" -type f \( -name ai-memory -o -name ai-memory.exe \) | head -1)"
+          chmod +x "$bin" || true
+          bindir="$(dirname "$bin")"
+          if command -v cygpath >/dev/null 2>&1; then bindir="$(cygpath -w "$bindir")"; fi
+          echo "$bindir" >> "$GITHUB_PATH"
+      - name: Live test against a real ai-memory server
+        shell: bash
+        run: |
+          set -euo pipefail
+          export AI_MEMORY_DATA_DIR="$RUNNER_TEMP/ai-memory-data"
+          ai-memory --version
+          # init mints the root bearer token under the data dir; the server
+          # requires it and every client (hook, call) reads it from there, as
+          # on a real install.
+          ai-memory init
+          ai-memory serve --transport http --bind 127.0.0.1:49374 > "$RUNNER_TEMP/serve.log" 2>&1 &
+          for _ in $(seq 1 90); do
+            if curl -sf http://127.0.0.1:49374/healthz > /dev/null; then break; fi
+            sleep 1
+          done
+          curl -sf http://127.0.0.1:49374/healthz > /dev/null
+          if ! node test/live/live.mjs; then
+            echo '--- ai-memory serve log (tail)'
+            tail -n 200 "$RUNNER_TEMP/serve.log"
+            exit 1
+          fi

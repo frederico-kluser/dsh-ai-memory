@@ -1,0 +1,14 @@
+# dsh-ai-memory bundle layer. DSH applies it automatically to a profile that
+# installs this package as a bundle:
+#
+#   dsh plugin --profile <profile> add github:frederico-kluser/dsh-ai-memory
+#
+# One insert row with this plugin's own id; it never targets another package's
+# row, and the id is deliberately not `ai-memory` so it cannot collide with the
+# `- id: 'ai-memory'` MCP-client row that `ai-memory install-mcp --client dsh`
+# prints. Every option has a working default (the ai-memory binary is
+# discovered per OS); to change one, restate this entry with a `config:` block
+# in the profile's cordis.patch.yml (see README "Configuration").
+- insert:
+    - id: dsh-ai-memory
+      name: './lib/index.js'
