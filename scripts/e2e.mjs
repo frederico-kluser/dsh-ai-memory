@@ -3,6 +3,11 @@
  * End-to-end test against a REAL DeepSeek Harness and a REAL ai-memory server.
  *
  *   node scripts/e2e.mjs [--dsh-root <checkout>] [--work <dir>] [--keep]
+ *                        [--install github:frederico-kluser/dsh-ai-memory#v0.1.0]
+ *
+ * With --install, the published package is installed into the isolated
+ * profile with `dsh plugin add` and mounted by its bundle layer; without it,
+ * this checkout's lib/ is mounted by a patch row.
  *
  * It never touches ~/.dsh or an existing project: DSH runs from an isolated
  * DSH_HOME with a keyless mock model, inside a fresh git repository, and the
@@ -82,6 +87,24 @@ writeFileSync(join(project, 'README.md'), '# dsh-ai-memory e2e fixture\n')
 git('add', '.')
 git('commit', '-qm', 'fixture')
 
+// --install <spec>: test the distributed package instead of this checkout —
+// `dsh plugin add <spec>` into the isolated profile, so the bundle layer (not
+// a patch row) mounts the plugin, exactly as a user install does.
+const installSpec = option('--install')
+if (installSpec !== undefined) {
+  const added = spawnSync(process.execPath, [dshBin, 'plugin', '--profile', 'headless', 'add', installSpec], {
+    cwd: project, encoding: 'utf8', timeout: 300_000, windowsHide: true,
+    env: { ...process.env, DSH_HOME: dshHome, NO_COLOR: '1' },
+  })
+  if (added.status !== 0) die(`dsh plugin add ${installSpec} failed (exit ${added.status}): ${(added.stderr || added.stdout).slice(-800)}`, 'check pnpm and network access to GitHub')
+  const dumped = spawnSync(process.execPath, [dshBin, '--profile', 'headless', '--dump-config'], {
+    cwd: project, encoding: 'utf8', timeout: 120_000, windowsHide: true,
+    env: { ...process.env, DSH_HOME: dshHome, NO_COLOR: '1' },
+  })
+  console.log(`  installed ${installSpec} into the isolated headless profile`)
+  check(dumped.status === 0 && /dsh-ai-memory/.test(dumped.stdout), 'the composed headless profile mounts the dsh-ai-memory bundle row', (dumped.stderr || dumped.stdout).slice(-600))
+}
+
 const patchPath = join(work, `e2e-${stamp}.patch.yml`)
 const yamlPath = (path) => `'${path.replaceAll("'", "''")}'`
 writeFileSync(patchPath, [
@@ -93,8 +116,7 @@ writeFileSync(patchPath, [
   '- insert:',
   '    - id: dsh-ai-memory-e2e-mock-llm',
   `      name: ${yamlPath(join(repo, 'test', 'e2e', 'mock-llm.mjs'))}`,
-  '    - id: dsh-ai-memory',
-  `      name: ${yamlPath(join(repo, 'lib', 'index.js'))}`,
+  ...installSpec === undefined ? ['    - id: dsh-ai-memory', `      name: ${yamlPath(join(repo, 'lib', 'index.js'))}`] : [],
   '',
 ].join('\n'))
 
