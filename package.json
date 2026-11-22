@@ -1,6 +1,6 @@
 {
   "name": "dsh-ai-memory",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "DeepSeek Harness plugin that wires ai-memory natively: full lifecycle capture (session start and end, prompts, tools, turn stops, compaction, subagents), the pending handoff and post-compaction anchor injected into the session, and the ai-memory tools for the model — no shell, on Windows, macOS and Linux.",
   "type": "module",
   "main": "./lib/index.js",
