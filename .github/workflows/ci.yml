@@ -103,3 +103,20 @@ jobs:
             tail -n 200 "$RUNNER_TEMP/serve.log"
             exit 1
           fi
+
+  # Stable name: this is the `context` the main-branch ruleset requires, so the
+  # matrices above can change without touching the ruleset.
+  build:
+    name: build
+    needs: [test, live]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Fail when any matrix leg failed
+        if: needs.test.result != 'success' || needs.live.result != 'success'
+        run: |
+          echo "::error::test=${{ needs.test.result }} live=${{ needs.live.result }} — see the failing job"
+          exit 1
+      - name: Summary
+        run: echo "### CI ✅ — unit tests on 3 OS × Node 22/24 and the live ai-memory test on 3 OS" >> "$GITHUB_STEP_SUMMARY"
