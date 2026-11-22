@@ -3,3 +3,16 @@ dist/
 *.tsbuildinfo
 .DS_Store
 .e2e/
+
+# Gerados pelo oss-scaffold.sh e NÃO usados aqui (o reentry recria-os):
+# - husky/commitlint precisam de um script `prepare`, e com ele o
+#   `dsh plugin add github:…` passa a exigir aprovação de build do pnpm;
+#   os hooks vêm do oss-hooks.sh (global) e o CI valida o resto.
+# - release-please/git-cliff: as versões saem de oss-version.py +
+#   oss-changelog.py, com o gate de release, num PR normal.
+.husky/
+commitlint.config.js
+cliff.toml
+release-please-config.json
+.release-please-manifest.json
+.github/workflows/release-please.yml
