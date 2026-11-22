@@ -69,6 +69,30 @@ export const CONTEXT_SOURCE = Object.freeze({ kind: 'dsh-ai-memory' })
 export interface PluginOverrides {
   readonly cli?: AiMemoryCli
   readonly discovery?: DiscoveryResult
+  /** Receives the `[dsh-ai-memory] …` diagnostic lines (default: stderr). */
+  readonly diagnostics?: (line: string) => void
+}
+
+/**
+ * Where the operator can read the plugin's few diagnostic lines (activation,
+ * warnings, a claimed handoff). Cordis keeps `ctx.logger` records in an
+ * in-memory buffer with no console exporter in the web profile, so they would
+ * never reach `~/.dsh/logs/dsh-web.log`; sibling DSH plugins write their
+ * status lines to stderr for the same reason. Lines go to stderr only when it
+ * is redirected (a log file or a pipe), so an interactive terminal UI is never
+ * drawn over; `DSH_AI_MEMORY_VERBOSE=1` forces them, `DSH_AI_MEMORY_QUIET=1`
+ * silences them.
+ */
+export function defaultDiagnostics(env: NodeJS.ProcessEnv = process.env, stderr: NodeJS.WriteStream = process.stderr): ((line: string) => void) | undefined {
+  if (env['DSH_AI_MEMORY_QUIET'] === '1') return undefined
+  if (stderr.isTTY === true && env['DSH_AI_MEMORY_VERBOSE'] !== '1') return undefined
+  return (line: string) => {
+    try {
+      stderr.write(`${line}\n`)
+    } catch {
+      // a closed stderr must never break the harness
+    }
+  }
 }
 
 interface SessionState {
@@ -108,7 +132,16 @@ async function within<T>(work: Promise<T>, ms: number, fallback: T): Promise<T> 
 
 export function apply(ctx: PluginContext, rawConfig?: Config, overrides: PluginOverrides = {}): void {
   const logger: Logger = ctx.logger ?? console
-  const warn = (message: string): void => logger.warn(`dsh-ai-memory: ${message}`)
+  const diagnostics = 'diagnostics' in overrides ? overrides.diagnostics : defaultDiagnostics()
+  const visible = (message: string): void => diagnostics?.(`[dsh-ai-memory] ${message}`)
+  const warn = (message: string): void => {
+    logger.warn(`dsh-ai-memory: ${message}`)
+    visible(`warning: ${message}`)
+  }
+  const info = (message: string): void => {
+    logger.info(`dsh-ai-memory: ${message}`)
+    visible(message)
+  }
   const debug = (message: string): void => (logger.debug ?? logger.info).call(logger, `dsh-ai-memory: ${message}`)
   const config: ResolvedConfig = resolveConfig(rawConfig, warn)
 
@@ -118,7 +151,7 @@ export function apply(ctx: PluginContext, rawConfig?: Config, overrides: PluginO
     return
   }
   const cli = overrides.cli ?? new AiMemoryCli(discovered.path, { dataDir: config.dataDir })
-  logger.info(`dsh-ai-memory: using ${discovered.path} (found via ${discovered.source}), agent label "${config.agent}"`)
+  info(`active — using ${discovered.path} (found via ${discovered.source}), agent label "${config.agent}"`)
 
   let disposed = false
   const sessions = new Map<string, SessionState>()
@@ -230,7 +263,7 @@ export function apply(ctx: PluginContext, rawConfig?: Config, overrides: PluginO
   }
 
   const injectContext = (agent: Agent | undefined, outcome: StartupOutcome, what: string): void => {
-    if (outcome.text !== undefined) logger.info(`dsh-ai-memory: ${what}: ${outcome.note}`)
+    if (outcome.text !== undefined) info(`${what}: ${outcome.note}`)
     else debug(`${what}: ${outcome.note}`)
     if (outcome.text === undefined || agent === undefined || disposed) return
     try {

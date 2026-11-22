@@ -26,8 +26,9 @@ function replies(extra: Record<string, Reply> = {}): Record<string, Reply> {
 function setup(extra: Record<string, Reply> = {}, config: Record<string, unknown> = {}) {
   const fake = new FakeAiMemory(replies(extra))
   const ctx = new FakeContext()
-  apply(ctx, config, { cli: fake.cli, discovery: { path: process.execPath, source: 'config' } })
-  return { fake, ctx }
+  const diagnostics: string[] = []
+  apply(ctx, config, { cli: fake.cli, discovery: { path: process.execPath, source: 'config' }, diagnostics: line => diagnostics.push(line) })
+  return { fake, ctx, diagnostics }
 }
 
 function userMessage(text: string, kind = 'user'): UserMessage {
@@ -250,9 +251,35 @@ test('tools: none keeps the model surface empty; capture can be switched off', a
   }
 })
 
-test('no ai-memory executable: the plugin stays inactive and says why', () => {
+test('no ai-memory executable: the plugin stays inactive and says why, visibly', () => {
   const ctx = new FakeContext()
-  apply(ctx, {}, { discovery: { error: 'ai-memory executable not found', searched: ['/a', '/b'] } })
+  const diagnostics: string[] = []
+  apply(ctx, {}, { discovery: { error: 'ai-memory executable not found', searched: ['/a', '/b'] }, diagnostics: line => diagnostics.push(line) })
   assert.equal(ctx.listeners.size, 0)
   assert.ok(ctx.logger.lines.some(line => line.startsWith('warn') && line.includes('/a, /b')))
+  assert.ok(diagnostics.some(line => line.startsWith('[dsh-ai-memory] warning:') && line.includes('/a, /b')))
+})
+
+test('activation and a claimed handoff are announced on the diagnostic stream', async () => {
+  const { fake, ctx, diagnostics } = setup({ 'call memory_handoff_accept': { stdout: CLAIMED } })
+  try {
+    assert.ok(diagnostics[0]?.startsWith('[dsh-ai-memory] active — using '))
+    const agent = ctx.addAgent(new FakeAgent('s-10', process.cwd()))
+    await ctx.serial('agent/created', { agent, source: 'startup' })
+    assert.ok(diagnostics.some(line => line.includes('startup context: claimed handoff h1')))
+  } finally {
+    ctx.dispose()
+    fake.cleanup()
+  }
+})
+
+test('diagnostics go to a redirected stderr only, and can be forced or silenced', async () => {
+  const { defaultDiagnostics } = await import('../src/index.js')
+  const writes: string[] = []
+  const stream = (isTTY: boolean) => ({ isTTY, write: (chunk: string) => { writes.push(chunk); return true } }) as unknown as NodeJS.WriteStream
+  defaultDiagnostics({}, stream(false))?.('to a log file')
+  assert.equal(defaultDiagnostics({}, stream(true)), undefined, 'an interactive terminal is never drawn over')
+  defaultDiagnostics({ DSH_AI_MEMORY_VERBOSE: '1' }, stream(true))?.('forced')
+  assert.equal(defaultDiagnostics({ DSH_AI_MEMORY_QUIET: '1' }, stream(false)), undefined)
+  assert.deepEqual(writes, ['to a log file\n', 'forced\n'])
 })

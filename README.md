@@ -52,7 +52,10 @@ dsh plugin --profile web add github:frederico-kluser/dsh-ai-memory
 
 The package declares a DSH bundle, so `dsh plugin add` mounts it; do not also add a manual
 `- insert:` row. Restart (or reload) the profile. Repeat for each profile you use (`headless`,
-`tui`, …). The DSH log shows `dsh-ai-memory: using <path to ai-memory>` when it is active.
+`tui`, …). When it is active, the profile's log (for `web`, `~/.dsh/logs/dsh-web.log`) shows
+`[dsh-ai-memory] active — using <path to ai-memory>`; warnings use the same prefix. These lines go
+to stderr only when it is redirected to a file or a pipe, so an interactive terminal UI is never
+drawn over (`DSH_AI_MEMORY_VERBOSE=1` forces them, `DSH_AI_MEMORY_QUIET=1` silences them).
 
 From a local checkout, point a profile patch at the built entry instead (and do not install the
 package in that profile):
