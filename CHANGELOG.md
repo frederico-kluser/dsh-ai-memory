@@ -7,6 +7,14 @@ Conventional Commits since the previous tag.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-21
+
+### Bug Fixes
+- mostra ativação e avisos no log do DSH web (#3) ([aeec85e](https://github.com/frederico-kluser/dsh-ai-memory/commit/aeec85e))
+
+### Tests
+- **e2e:** valida o pacote publicado com --install (#2) ([e29222d](https://github.com/frederico-kluser/dsh-ai-memory/commit/e29222d))
+
 ## [0.1.0] - 2026-11-21
 
 ### Features
@@ -26,5 +34,6 @@ Conventional Commits since the previous tag.
   - Cross-OS executable discovery (`AI_MEMORY_BIN`, `PATH`, per-OS installer locations) and a
     detached `SessionEnd` at DSH shutdown.
 
-[Unreleased]: https://github.com/frederico-kluser/dsh-ai-memory/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/frederico-kluser/dsh-ai-memory/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/frederico-kluser/dsh-ai-memory/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/frederico-kluser/dsh-ai-memory/releases/tag/v0.1.0
